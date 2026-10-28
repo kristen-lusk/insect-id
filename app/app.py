@@ -11,12 +11,14 @@ Environment variables (all optional):
 import io
 import os
 import tempfile
+from urllib.parse import quote
 
 import cv2
 import streamlit as st
 from PIL import Image
 
-from core import RANKS, make_views, rollup, walk
+from common_names import lay_name
+from core import RANKS, derive_common, make_views, rollup, walk
 from features import KB, PAIR_LABELS, REGION_LABELS, WING_LABELS, check_taxon, suggest_other_groups
 
 try:
@@ -126,9 +128,15 @@ if uploaded:
         with st.spinner("Identifying..."):
             species_preds = clf.predict(views, Rank.SPECIES, k=200)
         st.session_state.update(pred_key=pred_key, n_views=len(views),
-                                totals=rollup(species_preds, n_views=len(views)))
+                                totals=rollup(species_preds, n_views=len(views)),
+                                common=derive_common(species_preds))
 
     totals = st.session_state.totals
+    common = st.session_state.get("common", {})
+
+    def pretty(rank, name):
+        text, _ = lay_name(name, common.get(rank, {}).get(name), exact=(rank == "species"))
+        return f"{name} ({text})" if text else name
     accepted, tentative, alternatives = walk(totals, threshold)
 
     # ---------------------------- result ----------------------------
@@ -137,8 +145,16 @@ if uploaded:
                    "filling more of the frame.")
     else:
         st.subheader("Result")
+        top_rank, top_name, top_conf = accepted[-1]
+        st.success(f"Best match: **{pretty(top_rank, top_name)}**  \n"
+                   f"Identified to {top_rank} ({top_conf:.0%} confident)")
+        if RANKS.index(top_rank) >= 3:
+            q = quote(top_name)
+            st.markdown(f"Look it up: [BugGuide](https://bugguide.net/index.php?q=search&keys={q}) "
+                        f"(North America only) · [iNaturalist](https://www.inaturalist.org/taxa/search?q={q}) "
+                        f"· [GBIF](https://www.gbif.org/species/search?q={q})")
         for rank, name, conf in accepted:
-            st.markdown(f"**{rank.capitalize()}:** {name}  \n"
+            st.markdown(f"**{rank.capitalize()}:** {pretty(rank, name)}  \n"
                         f"<small>confidence {conf:.0%}</small>", unsafe_allow_html=True)
             st.progress(min(conf, 1.0))
         if len(accepted) < len(RANKS):
@@ -148,7 +164,7 @@ if uploaded:
     if alternatives:
         st.subheader(f"Closest candidates ({alternatives[0][0]})")
         for _, name, conf in alternatives:
-            st.write(f"- {name}: {conf:.0%}")
+            st.write(f"- {pretty(alternatives[0][0], name)}: {conf:.0%}")
         st.caption("These are possibilities, not identifications. Compare them with photos on "
                    "iNaturalist, BugGuide, or GBIF.")
 
@@ -193,7 +209,7 @@ if uploaded:
     shown = [(r, n, c, False) for r, n, c in accepted] + [(r, n, c, True) for r, n, c in tentative[:1]]
     icons = {"match": "✅", "conflict": "⚠️", "unknown": "❔"}
     for i, (rank, name, conf, is_tentative) in enumerate(shown):
-        label = f"{rank.capitalize()}: {name} ({conf:.0%}{', tentative' if is_tentative else ''})"
+        label = f"{rank.capitalize()}: {pretty(rank, name)} [{conf:.0%}{', tentative' if is_tentative else ''}]"
         with st.expander(label, expanded=(i == len(accepted) - 1)):
             kb = KB.get(name)
             if not kb:
@@ -230,3 +246,4 @@ if uploaded:
                     st.write(", ".join(hit["species"].head(15)))
             except Exception as e:
                 st.error(f"Lookup failed: {e}")
+
