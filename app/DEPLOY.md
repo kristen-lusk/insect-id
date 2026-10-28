@@ -26,8 +26,9 @@ If it shows "resource limits" / keeps restarting, it ran out of memory: use Opti
 1. Sign up at oracle.com/cloud/free (a credit card is needed for identity checks).
 2. Create a compute instance:
    - Image: Ubuntu 22.04 (Canonical)
-   - Shape: VM.Standard.A1.Flex (Ampere ARM), e.g. 4 OCPUs and 24 GB memory
-     (Always Free allows up to that total). If you see "Out of capacity", try again
+   - Shape: VM.Standard.A1.Flex (Ampere ARM). Use the most the Always Free tier allows;
+     reports say Oracle reduced this to 2 OCPUs and 12 GB in 2026, so check Oracle's
+     current limits. 12 GB should still fit BioCLIP 2. If you see "Out of capacity", try again
      later or another availability domain.
    - Add your SSH public key (or let Oracle generate one and download it).
 3. Open port 8501: in the Oracle console go to your instance's subnet -> Security List
