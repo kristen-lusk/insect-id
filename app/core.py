@@ -90,3 +90,21 @@ def walk(totals: dict, threshold: float):
             tentative.append((rank, best_lin[-1], conf))
         prefix = best_lin
     return accepted, tentative, alternatives
+
+
+def derive_common(species_preds: list) -> dict:
+    """
+    {rank: {taxon_name: common_name}}. For a species it is its own common name;
+    for a genus/family/... it is the common name of the highest-scoring species
+    inside it that has one (shown to the user as an 'e.g.').
+    """
+    best = {r: {} for r in RANKS}
+    for p in species_preds:
+        cn = (p.get("common_name") or "").strip()
+        if not cn or cn.lower() == str(p.get("species", "")).lower():
+            continue
+        for rank in RANKS:
+            name = p[rank]
+            if name not in best[rank] or p["score"] > best[rank][name][0]:
+                best[rank][name] = (p["score"], cn)
+    return {r: {n: c for n, (_, c) in d.items()} for r, d in best.items()}
